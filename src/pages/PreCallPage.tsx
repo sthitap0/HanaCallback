@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Phone, CheckCircle, ArrowLeft, ChevronDown } from 'lucide-react';
+import { Phone, CheckCircle, ArrowLeft, User, Mail } from 'lucide-react';
+import { PhoneInput } from '../components/PhoneInput';
+import type { CountryCode } from '../components/CountryCodeSelect';
 
 const preCallContent = {
   depression: {
@@ -10,7 +12,8 @@ const preCallContent = {
       'Discuss symptom changes',
       'Track treatment progress',
       'Identify areas of concern'
-    ]
+    ],
+    callType: 'phq_9'
   },
   medication: {
     title: 'Medication Adherence Monitoring',
@@ -19,7 +22,8 @@ const preCallContent = {
       'Side effect monitoring',
       'Barrier identification',
       'Resource coordination'
-    ]
+    ],
+    callType: 'medication_adherence'
   },
   treatment: {
     title: 'Treatment Response Assessment',
@@ -28,34 +32,80 @@ const preCallContent = {
       'Quality of life assessment',
       'Treatment effectiveness review',
       'Care plan adjustment discussion'
-    ]
+    ],
+    callType: 'treatment_response'
   }
 };
 
-const countryCodes = [
+const countryCodes: CountryCode[] = [
+  { code: '+91', country: 'IN', flag: '🇮🇳' },
+  { code: '+353', country: 'IE', flag: '🇮🇪' }, 
   { code: '+1', country: 'US', flag: '🇺🇸' },
   { code: '+44', country: 'GB', flag: '🇬🇧' },
   { code: '+61', country: 'AU', flag: '🇦🇺' },
   { code: '+33', country: 'FR', flag: '🇫🇷' },
-  { code: '+49', country: 'DE', flag: '🇩🇪' },
+  { code: '+49', country: 'DE', flag: '🇩🇪' }
 ];
 
 function PreCallPage() {
   const { type } = useParams<{ type: keyof typeof preCallContent }>();
   const navigate = useNavigate();
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [countryCode, setCountryCode] = useState(countryCodes[0]);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    phoneNumber: ''
+  });
+  const [countryCode, setCountryCode] = useState<CountryCode>(countryCodes[0]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  
   const content = type ? preCallContent[type] : null;
 
   if (!content) {
     return <div>Invalid assessment type</div>;
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle phone call logic here
-    console.log('Initiating call to:', countryCode.code + phoneNumber);
+    setIsLoading(true);
+    setError(null);
+
+    const payload = {
+      call_type: content.callType,
+      phone_number: countryCode.code + formData.phoneNumber,
+      name: formData.name,
+      email: formData.email
+    };
+
+    try {
+      const response = await fetch('https://g8yt9rfao4.execute-api.us-east-1.amazonaws.com/v1/start_call', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+      alert('Call initiated successfully! You will receive a call shortly.');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || 'Failed to initiate call. Please try again.');
+      }
+
+      
+    } catch (err) {
+      //setError(err instanceof Error ? err.message : 'An unexpected error occurred');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -85,62 +135,66 @@ function PreCallPage() {
           ))}
         </ul>
 
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md text-red-600">
+            {error}
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Call Type
+            <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
+              Your Name
             </label>
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-              <span className="text-gray-600">Phone</span>
-              <Phone className="h-5 w-5 text-gray-400" />
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <User className="h-5 w-5 text-gray-400" />
+              </div>
+              <input
+                type="text"
+                id="name"
+                name="name"
+                value={formData.name}
+                onChange={handleInputChange}
+                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                placeholder="John Doe"
+                required
+              />
             </div>
           </div>
 
           <div>
-            <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-2">
-              Phone Number
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+              Email Address
             </label>
-            <div className="flex rounded-md shadow-sm">
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                  className="inline-flex items-center px-4 py-2 border border-r-0 border-gray-300 rounded-l-md bg-gray-50 text-gray-500 text-sm hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                >
-                  <span className="mr-2">{countryCode.flag}</span>
-                  {countryCode.code}
-                  <ChevronDown className="ml-2 h-4 w-4" />
-                </button>
-                
-                {isDropdownOpen && (
-                  <div className="absolute z-10 mt-1 w-full bg-white shadow-lg rounded-md border border-gray-200">
-                    <ul className="py-1 max-h-56 overflow-auto">
-                      {countryCodes.map((country) => (
-                        <li
-                          key={country.code}
-                          onClick={() => {
-                            setCountryCode(country);
-                            setIsDropdownOpen(false);
-                          }}
-                          className="px-3 py-2 hover:bg-gray-100 cursor-pointer flex items-center"
-                        >
-                          <span className="mr-2">{country.flag}</span>
-                          <span>{country.code}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Mail className="h-5 w-5 text-gray-400" />
               </div>
               <input
-                type="tel"
-                id="phone"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                className="flex-1 min-w-0 block w-full px-3 py-2 rounded-none rounded-r-md border border-gray-300 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                placeholder="(555) 555-5555"
+                type="email"
+                id="email"
+                name="email"
+                value={formData.email}
+                onChange={handleInputChange}
+                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                placeholder="john@example.com"
+                required
               />
             </div>
+          </div>
+
+          <div>
+            <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700 mb-2">
+              Phone Number
+            </label>
+            <PhoneInput
+              phoneNumber={formData.phoneNumber}
+              countryCode={countryCode}
+              onPhoneNumberChange={handleInputChange}
+              onCountryCodeChange={setCountryCode}
+              countryCodes={countryCodes}
+            />
             <p className="mt-2 text-sm text-gray-500">
               We need your phone number so the AI can call you for the demo. Don't worry, we won't save your information.
             </p>
@@ -148,10 +202,25 @@ function PreCallPage() {
 
           <button
             type="submit"
-            className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg font-medium flex items-center justify-center hover:bg-blue-700 transition-colors"
+            disabled={isLoading}
+            className={`w-full bg-blue-600 text-white py-3 px-6 rounded-lg font-medium flex items-center justify-center transition-colors ${
+              isLoading ? 'opacity-75 cursor-not-allowed' : 'hover:bg-blue-700'
+            }`}
           >
-            <Phone className="mr-2 h-5 w-5" />
-            Call me!
+            {isLoading ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Initiating Call...
+              </>
+            ) : (
+              <>
+                <Phone className="mr-2 h-5 w-5" />
+                Call me!
+              </>
+            )}
           </button>
         </form>
       </div>

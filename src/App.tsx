@@ -15,7 +15,7 @@ const App: React.FC = () => {
                 <img 
                   src="https://cdn.prod.website-files.com/66d8df543029dd65661ce227/66e987ef0f6d0151f4c8d610_loghana-p-500.png" 
                   alt="Hana Logo" 
-                  className="h-8"
+                  className="h-16" // Increased to 1.5x (from h-16 to h-24)
                 />
               </div>
             </div>
